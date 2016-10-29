@@ -13,13 +13,15 @@ Having trouble? We'd like to help!
 
 * Try the :doc:`FAQ <faq>` -- it's got answers to some common questions.
 * Looking for specific information? Try the :ref:`genindex` or :ref:`modindex`.
+* Ask or search questions in `StackOverflow using the scrapy tag`_,
 * Search for information in the `archives of the scrapy-users mailing list`_, or
   `post a question`_.
-* Ask a question in the `#scrapy IRC channel`_.
+* Ask a question in the `#scrapy IRC channel`_,
 * Report bugs with Scrapy in our `issue tracker`_.
 
 .. _archives of the scrapy-users mailing list: https://groups.google.com/forum/#!forum/scrapy-users
 .. _post a question: https://groups.google.com/forum/#!forum/scrapy-users
+.. _StackOverflow using the scrapy tag: https://stackoverflow.com/tags/scrapy
 .. _#scrapy IRC channel: irc://irc.freenode.net/scrapy
 .. _issue tracker: https://github.com/scrapy/scrapy/issues
 
@@ -28,6 +30,7 @@ First steps
 ===========
 
 .. toctree::
+   :caption: First steps
    :hidden:
 
    intro/overview
@@ -53,6 +56,7 @@ Basic concepts
 ==============
 
 .. toctree::
+   :caption: Basic concepts
    :hidden:
 
    topics/commands
@@ -110,6 +114,7 @@ Built-in services
 =================
 
 .. toctree::
+   :caption: Built-in services
    :hidden:
 
    topics/logging
@@ -138,6 +143,7 @@ Solving specific problems
 =========================
 
 .. toctree::
+   :caption: Solving specific problems
    :hidden:
 
    faq
@@ -203,6 +209,7 @@ Extending Scrapy
 ================
 
 .. toctree::
+   :caption: Extending Scrapy
    :hidden:
 
    topics/architecture
@@ -240,6 +247,7 @@ All the rest
 ============
 
 .. toctree::
+   :caption: All the rest
    :hidden:
 
    news

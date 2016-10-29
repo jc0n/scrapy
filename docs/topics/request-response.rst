@@ -67,6 +67,7 @@ Request objects
 
             request_with_cookies = Request(url="http://www.example.com",
                                            cookies={'currency': 'USD', 'country': 'UY'})
+
         2. Using a list of dicts::
 
             request_with_cookies = Request(url="http://www.example.com",
@@ -116,6 +117,8 @@ Request objects
        raised while processing the request. This includes pages that failed
        with 404 HTTP errors and such. It receives a `Twisted Failure`_ instance
        as first parameter.
+       For more information,
+       see :ref:`topics-request-response-ref-errbacks` below.
     :type errback: callable
 
     .. attribute:: Request.url
@@ -211,6 +214,69 @@ different fields from different pages::
         item['other_url'] = response.url
         return item
 
+
+.. _topics-request-response-ref-errbacks:
+
+Using errbacks to catch exceptions in request processing
+--------------------------------------------------------
+
+The errback of a request is a function that will be called when an exception
+is raise while processing it.
+
+It receives a `Twisted Failure`_ instance as first parameter and can be
+used to track connection establishment timeouts, DNS errors etc.
+
+Here's an example spider logging all errors and catching some specific
+errors if needed::
+
+    import scrapy
+
+    from scrapy.spidermiddlewares.httperror import HttpError
+    from twisted.internet.error import DNSLookupError
+    from twisted.internet.error import TimeoutError, TCPTimedOutError
+
+    class ErrbackSpider(scrapy.Spider):
+        name = "errback_example"
+        start_urls = [
+            "http://www.httpbin.org/",              # HTTP 200 expected
+            "http://www.httpbin.org/status/404",    # Not found error
+            "http://www.httpbin.org/status/500",    # server issue
+            "http://www.httpbin.org:12345/",        # non-responding host, timeout expected
+            "http://www.httphttpbinbin.org/",       # DNS error expected
+        ]
+
+        def start_requests(self):
+            for u in self.start_urls:
+                yield scrapy.Request(u, callback=self.parse_httpbin,
+                                        errback=self.errback_httpbin,
+                                        dont_filter=True)
+
+        def parse_httpbin(self, response):
+            self.logger.info('Got successful response from {}'.format(response.url))
+            # do something useful here...
+
+        def errback_httpbin(self, failure):
+            # log all failures
+            self.logger.error(repr(failure))
+
+            # in case you want to do something special for some errors,
+            # you may need the failure's type:
+
+            if failure.check(HttpError):
+                # these exceptions come from HttpError spider middleware
+                # you can get the non-200 response
+                response = failure.value.response
+                self.logger.error('HttpError on %s', response.url)
+
+            elif failure.check(DNSLookupError):
+                # this is the original request
+                request = failure.request
+                self.logger.error('DNSLookupError on %s', request.url)
+
+            elif failure.check(TimeoutError, TCPTimedOutError):
+                request = failure.request
+                self.logger.error('TimeoutError on %s', request.url)
+
 .. _topics-request-meta:
 
 Request.meta special keys
@@ -227,7 +293,7 @@ Those are:
 * :reqmeta:`handle_httpstatus_all`
 * ``dont_merge_cookies`` (see ``cookies`` parameter of :class:`Request` constructor)
 * :reqmeta:`cookiejar`
-  :reqmeta:`dont_cache`
+* :reqmeta:`dont_cache`
 * :reqmeta:`redirect_urls`
 * :reqmeta:`bindaddress`
 * :reqmeta:`dont_obey_robotstxt`
@@ -282,7 +348,7 @@ fields with form data from :class:`Response` objects.
     The :class:`FormRequest` objects support the following class method in
     addition to the standard :class:`Request` methods:
 
-    .. classmethod:: FormRequest.from_response(response, [formname=None, formnumber=0, formdata=None, formxpath=None, clickdata=None, dont_click=False, ...])
+    .. classmethod:: FormRequest.from_response(response, [formname=None, formnumber=0, formdata=None, formxpath=None, formcss=None, clickdata=None, dont_click=False, ...])
 
        Returns a new :class:`FormRequest` object with its form field values
        pre-populated with those found in the HTML ``<form>`` element contained
@@ -309,6 +375,9 @@ fields with form data from :class:`Response` objects.
 
        :param formxpath: if given, the first form that matches the xpath will be used.
        :type formxpath: string
+
+       :param formcss: if given, the first form that matches the css selector will be used.
+       :type formcss: string
 
        :param formnumber: the number of form to use, when the response contains
           multiple forms. The first one (and also the default) is ``0``.
@@ -338,6 +407,9 @@ fields with form data from :class:`Response` objects.
 
        .. versionadded:: 0.17
           The ``formxpath`` parameter.
+
+       .. versionadded:: 1.1.0
+          The ``formcss`` parameter.
 
 Request usage examples
 ----------------------
@@ -391,7 +463,7 @@ method for this job. Here's an example spider which uses it::
 Response objects
 ================
 
-.. class:: Response(url, [status=200, headers, body, flags])
+.. class:: Response(url, [status=200, headers=None, body=b'', flags=None, request=None])
 
     A :class:`Response` object represents an HTTP response, which is usually
     downloaded (by the Downloader) and fed to the Spiders for processing.
@@ -399,12 +471,12 @@ Response objects
     :param url: the URL of this response
     :type url: string
 
+    :param status: the HTTP status of the response. Defaults to ``200``.
+    :type status: integer
+
     :param headers: the headers of this response. The dict values can be strings
        (for single valued headers) or lists (for multi-valued headers).
     :type headers: dict
-
-    :param status: the HTTP status of the response. Defaults to ``200``.
-    :type status: integer
 
     :param body: the response body. It must be str, not unicode, unless you're
        using a encoding-aware :ref:`Response subclass
@@ -412,14 +484,14 @@ Response objects
        :class:`TextResponse`.
     :type body: str
 
-    :param meta: the initial values for the :attr:`Response.meta` attribute. If
-       given, the dict will be shallow copied.
-    :type meta: dict
-
     :param flags: is a list containing the initial values for the
        :attr:`Response.flags` attribute. If given, the list will be shallow
        copied.
     :type flags: list
+
+    :param request: the initial value of the :attr:`Response.request` attribute.
+        This represents the :class:`Request` that generated this response.
+    :type request: :class:`Request` object
 
     .. attribute:: Response.url
 
@@ -435,14 +507,20 @@ Response objects
 
     .. attribute:: Response.headers
 
-        A dictionary-like object which contains the response headers.
+        A dictionary-like object which contains the response headers. Values can
+        be accessed using :meth:`get` to return the first header value with the
+        specified name or :meth:`getlist` to return all header values with the
+        specified name. For example, this call will give you all cookies in the
+        headers::
+
+            response.headers.getlist('Set-Cookie')
 
     .. attribute:: Response.body
 
-        A str containing the body of this Response. Keep in mind that Response.body
-        is always a str. If you want the unicode version use
-        :meth:`TextResponse.body_as_unicode` (only available in
-        :class:`TextResponse` and subclasses).
+        The body of this Response. Keep in mind that Response.body
+        is always a bytes object. If you want the unicode version use
+        :attr:`TextResponse.text` (only available in :class:`TextResponse`
+        and subclasses).
 
         This attribute is read-only. To change the body of a Response use
         :meth:`replace`.
@@ -536,6 +614,21 @@ TextResponse objects
     :class:`TextResponse` objects support the following attributes in addition
     to the standard :class:`Response` ones:
 
+    .. attribute:: TextResponse.text
+
+       Response body, as unicode.
+
+       The same as ``response.body.decode(response.encoding)``, but the
+       result is cached after the first call, so you can access
+       ``response.text`` multiple times without extra overhead.
+
+       .. note::
+
+            ``unicode(response.body)`` is not a correct way to convert response
+            body to unicode: you would be using the system default encoding
+            (typically `ascii`) instead of the response encoding.
+
+
     .. attribute:: TextResponse.encoding
 
        A string with the encoding of this response. The encoding is resolved by
@@ -562,20 +655,6 @@ TextResponse objects
     :class:`TextResponse` objects support the following methods in addition to
     the standard :class:`Response` ones:
 
-    .. method:: TextResponse.body_as_unicode()
-
-        Returns the body of the response as unicode. This is equivalent to::
-
-            response.body.decode(response.encoding)
-
-        But **not** equivalent to::
-
-            unicode(response.body)
-
-        Since, in the latter case, you would be using the system default encoding
-        (typically `ascii`) to convert the body to unicode, instead of the response
-        encoding.
-
     .. method:: TextResponse.xpath(query)
 
         A shortcut to ``TextResponse.selector.xpath(query)``::
@@ -587,6 +666,11 @@ TextResponse objects
         A shortcut to ``TextResponse.selector.css(query)``::
 
             response.css('p')
+
+    .. method:: TextResponse.body_as_unicode()
+
+        The same as :attr:`text`, but available as a method. This method is
+        kept for backwards compatibility; please prefer ``response.text``.
 
 
 HtmlResponse objects
@@ -609,4 +693,4 @@ XmlResponse objects
     adds encoding auto-discovering support by looking into the XML declaration
     line.  See :attr:`TextResponse.encoding`.
 
-.. _Twisted Failure: http://twistedmatrix.com/documents/current/api/twisted.python.failure.Failure.html
+.. _Twisted Failure: https://twistedmatrix.com/documents/current/api/twisted.python.failure.Failure.html

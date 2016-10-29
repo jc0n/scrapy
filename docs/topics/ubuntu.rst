@@ -8,8 +8,11 @@ Ubuntu packages
 
 `Scrapinghub`_ publishes apt-gettable packages which are generally fresher than
 those in Ubuntu, and more stable too since they're continuously built from
-`Github repo`_ (master & stable branches) and so they contain the latest bug
+`GitHub repo`_ (master & stable branches) and so they contain the latest bug
 fixes.
+
+.. caution:: These packages are currently not updated and may not work on
+   Ubuntu 16.04 and above, see :issue:`2076` and :issue:`2137`.
 
 To use the packages:
 
@@ -33,4 +36,4 @@ To use the packages:
    repositories, it's very outdated and it isn't supported by Scrapy team.
 
 .. _Scrapinghub: http://scrapinghub.com/
-.. _Github repo: https://github.com/scrapy/scrapy
+.. _GitHub repo: https://github.com/scrapy/scrapy

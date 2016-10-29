@@ -7,7 +7,7 @@ For more information see docs/topics/architecture.rst
 import logging
 from time import time
 
-from twisted.internet import defer
+from twisted.internet import defer, task
 from twisted.python.failure import Failure
 
 from scrapy import signals
@@ -30,6 +30,7 @@ class Slot(object):
         self.close_if_idle = close_if_idle
         self.nextcall = nextcall
         self.scheduler = scheduler
+        self.heartbeat = task.LoopingCall(nextcall.schedule)
 
     def add_request(self, request):
         self.inprogress.add(request)
@@ -47,6 +48,7 @@ class Slot(object):
         if self.closing and not self.inprogress:
             if self.nextcall:
                 self.nextcall.cancel()
+                self.heartbeat.stop()
             self.closing.callback(None)
 
 
@@ -84,6 +86,21 @@ class ExecutionEngine(object):
         dfd = self._close_all_spiders()
         return dfd.addBoth(lambda _: self._finish_stopping_engine())
 
+    def close(self):
+        """Close the execution engine gracefully.
+
+        If it has already been started, stop it. In all cases, close all spiders
+        and the downloader.
+        """
+        if self.running:
+            # Will also close spiders and downloader
+            return self.stop()
+        elif self.open_spiders:
+            # Will also close downloader
+            return self._close_all_spiders()
+        else:
+            return defer.succeed(self.downloader.close())
+
     def pause(self):
         """Pause the execution engine"""
         self.paused = True
@@ -98,7 +115,6 @@ class ExecutionEngine(object):
             return
 
         if self.paused:
-            slot.nextcall.schedule(5)
             return
 
         while not self._needs_backout(spider):
@@ -161,12 +177,23 @@ class ExecutionEngine(object):
         return d
 
     def spider_is_idle(self, spider):
-        scraper_idle = self.scraper.slot.is_idle()
-        pending = self.slot.scheduler.has_pending_requests()
-        downloading = bool(self.downloader.active)
-        pending_start_requests = self.slot.start_requests is not None
-        idle = scraper_idle and not (pending or downloading or pending_start_requests)
-        return idle
+        if not self.scraper.slot.is_idle():
+            # scraper is not idle
+            return False
+
+        if self.downloader.active:
+            # downloader has pending requests
+            return False
+
+        if self.slot.start_requests is not None:
+            # not all start requests are handled
+            return False
+
+        if self.slot.scheduler.has_pending_requests():
+            # scheduler has pending requests
+            return False
+
+        return True
 
     @property
     def open_spiders(self):
@@ -239,6 +266,7 @@ class ExecutionEngine(object):
         self.crawler.stats.open_spider(spider)
         yield self.signals.send_catch_log_deferred(signals.spider_opened, spider=spider)
         slot.nextcall.schedule()
+        slot.heartbeat.start(5)
 
     def _spider_idle(self, spider):
         """Called when a spider gets idle. This function is called when there
@@ -252,7 +280,6 @@ class ExecutionEngine(object):
             spider=spider, dont_log=DontCloseSpider)
         if any(isinstance(x, Failure) and isinstance(x.value, DontCloseSpider) \
                 for _, x in res):
-            self.slot.nextcall.schedule(5)
             return
 
         if self.spider_is_idle(spider):

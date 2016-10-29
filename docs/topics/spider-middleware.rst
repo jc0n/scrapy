@@ -28,7 +28,12 @@ The :setting:`SPIDER_MIDDLEWARES` setting is merged with the
 :setting:`SPIDER_MIDDLEWARES_BASE` setting defined in Scrapy (and not meant to
 be overridden) and then sorted by order to get the final sorted list of enabled
 middlewares: the first middleware is the one closer to the engine and the last
-is the one closer to the spider.
+is the one closer to the spider. In other words,
+the :meth:`~scrapy.spidermiddlewares.SpiderMiddleware.process_spider_input`
+method of each middleware will be invoked in increasing
+middleware order (100, 200, 300, ...), and the
+:meth:`~scrapy.spidermiddlewares.SpiderMiddleware.process_spider_output` method
+of each middleware will be invoked in decreasing order.
 
 To decide which order to assign to your middleware see the
 :setting:`SPIDER_MIDDLEWARES_BASE` setting and pick a value according to where
@@ -211,7 +216,7 @@ HttpErrorMiddleware
 According to the `HTTP standard`_, successful responses are those whose
 status codes are in the 200-300 range.
 
-.. _HTTP standard: http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
+.. _HTTP standard: https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
 
 If you still want to process response codes outside that range, you can
 specify which response codes the spider is able to handle using the
@@ -238,7 +243,7 @@ responses, unless you really know what you're doing.
 
 For more information see: `HTTP Status Code Definitions`_.
 
-.. _HTTP Status Code Definitions: http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
+.. _HTTP Status Code Definitions: https://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
 
 HttpErrorMiddleware settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -273,6 +278,9 @@ OffsiteMiddleware
 
    This middleware filters out every request whose host names aren't in the
    spider's :attr:`~scrapy.spiders.Spider.allowed_domains` attribute.
+   All subdomains of any domain in the list are also allowed.
+   E.g. the rule ``www.example.org`` will also allow ``bob.www.example.org``
+   but not ``www2.example.com`` nor ``example.com``.
 
    When your spider returns a request for a domain not belonging to those
    covered by the spider, this middleware will log a debug message similar to

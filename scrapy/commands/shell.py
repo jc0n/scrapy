@@ -3,19 +3,23 @@ Scrapy Shell
 
 See documentation in docs/topics/shell.rst
 """
-
 from threading import Thread
 
 from scrapy.commands import ScrapyCommand
 from scrapy.shell import Shell
 from scrapy.http import Request
 from scrapy.utils.spider import spidercls_for_request, DefaultSpider
+from scrapy.utils.url import guess_scheme
 
 
 class Command(ScrapyCommand):
 
     requires_project = False
-    default_settings = {'KEEP_ALIVE': True, 'LOGSTATS_INTERVAL': 0}
+    default_settings = {
+        'KEEP_ALIVE': True,
+        'LOGSTATS_INTERVAL': 0,
+        'DUPEFILTER_CLASS': 'scrapy.dupefilters.BaseDupeFilter',
+    }
 
     def syntax(self):
         return "[url|file]"
@@ -41,6 +45,10 @@ class Command(ScrapyCommand):
 
     def run(self, args, opts):
         url = args[0] if args else None
+        if url:
+            # first argument may be a local file
+            url = guess_scheme(url)
+
         spider_loader = self.crawler_process.spider_loader
 
         spidercls = DefaultSpider

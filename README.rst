@@ -36,7 +36,7 @@ http://scrapy.org
 Requirements
 ============
 
-* Python 2.7
+* Python 2.7 or Python 3.3+
 * Works on Linux, Windows, Mac OSX, BSD
 
 Install
@@ -68,6 +68,12 @@ See http://scrapy.org/community/
 
 Contributing
 ============
+
+Please note that this project is released with a Contributor Code of Conduct
+(see https://github.com/scrapy/scrapy/blob/master/CODE_OF_CONDUCT.md).
+
+By participating in this project you agree to abide by its terms.
+Please report unacceptable behavior to opensource@scrapinghub.com.
 
 See http://doc.scrapy.org/en/master/contributing.html
 

@@ -276,6 +276,8 @@ DEPTH_LIMIT
 
 Default: ``0``
 
+Scope: ``scrapy.spidermiddlewares.depth.DepthMiddleware``
+
 The maximum depth that will be allowed to crawl for any site. If zero, no limit
 will be imposed.
 
@@ -286,9 +288,24 @@ DEPTH_PRIORITY
 
 Default: ``0``
 
-An integer that is used to adjust the request priority based on its depth.
+Scope: ``scrapy.spidermiddlewares.depth.DepthMiddleware``
 
-If zero, no priority adjustment is made from depth.
+An integer that is used to adjust the request priority based on its depth:
+
+- if zero (default), no priority adjustment is made from depth
+- **a positive value will decrease the priority, i.e. higher depth
+  requests will be processed later** ; this is commonly used when doing
+  breadth-first crawls (BFO)
+- a negative value will increase priority, i.e., higher depth requests
+  will be processed sooner (DFO)
+
+See also: :ref:`faq-bfo-dfo` about tuning Scrapy for BFO or DFO.
+
+.. note::
+
+    This setting adjusts priority **in the opposite way** compared to
+    other priority settings :setting:`REDIRECT_PRIORITY_ADJUST`
+    and :setting:`RETRY_PRIORITY_ADJUST`.
 
 .. setting:: DEPTH_STATS
 
@@ -296,6 +313,8 @@ DEPTH_STATS
 -----------
 
 Default: ``True``
+
+Scope: ``scrapy.spidermiddlewares.depth.DepthMiddleware``
 
 Whether to collect maximum depth stats.
 
@@ -305,6 +324,8 @@ DEPTH_STATS_VERBOSE
 -------------------
 
 Default: ``False``
+
+Scope: ``scrapy.spidermiddlewares.depth.DepthMiddleware``
 
 Whether to collect verbose depth stats. If this is enabled, the number of
 requests for each depth is collected in the stats.
@@ -321,7 +342,7 @@ Whether to enable DNS in-memory cache.
 .. setting:: DNSCACHE_SIZE
 
 DNSCACHE_SIZE
-----------------
+-------------
 
 Default: ``10000``
 
@@ -330,7 +351,7 @@ DNS in-memory cache size.
 .. setting:: DNS_TIMEOUT
 
 DNS_TIMEOUT
-----------------
+-----------
 
 Default: ``60``
 
@@ -344,6 +365,78 @@ DOWNLOADER
 Default: ``'scrapy.core.downloader.Downloader'``
 
 The downloader to use for crawling.
+
+.. setting:: DOWNLOADER_HTTPCLIENTFACTORY
+
+DOWNLOADER_HTTPCLIENTFACTORY
+----------------------------
+
+Default: ``'scrapy.core.downloader.webclient.ScrapyHTTPClientFactory'``
+
+Defines a Twisted ``protocol.ClientFactory``  class to use for HTTP/1.0
+connections (for ``HTTP10DownloadHandler``).
+
+.. note::
+
+    HTTP/1.0 is rarely used nowadays so you can safely ignore this setting,
+    unless you use Twisted<11.1, or if you really want to use HTTP/1.0
+    and override :setting:`DOWNLOAD_HANDLERS_BASE` for ``http(s)`` scheme
+    accordingly, i.e. to
+    ``'scrapy.core.downloader.handlers.http.HTTP10DownloadHandler'``.
+
+.. setting:: DOWNLOADER_CLIENTCONTEXTFACTORY
+
+DOWNLOADER_CLIENTCONTEXTFACTORY
+-------------------------------
+
+Default: ``'scrapy.core.downloader.contextfactory.ScrapyClientContextFactory'``
+
+Represents the classpath to the ContextFactory to use.
+
+Here, "ContextFactory" is a Twisted term for SSL/TLS contexts, defining
+the TLS/SSL protocol version to use, whether to do certificate verification,
+or even enable client-side authentication (and various other things).
+
+.. note::
+
+    Scrapy default context factory **does NOT perform remote server
+    certificate verification**. This is usually fine for web scraping.
+
+    If you do need remote server certificate verification enabled,
+    Scrapy also has another context factory class that you can set,
+    ``'scrapy.core.downloader.contextfactory.BrowserLikeContextFactory'``,
+    which uses the platform's certificates to validate remote endpoints.
+    **This is only available if you use Twisted>=14.0.**
+
+If you do use a custom ContextFactory, make sure it accepts a ``method``
+parameter at init (this is the ``OpenSSL.SSL`` method mapping
+:setting:`DOWNLOADER_CLIENT_TLS_METHOD`).
+
+.. setting:: DOWNLOADER_CLIENT_TLS_METHOD
+
+DOWNLOADER_CLIENT_TLS_METHOD
+----------------------------
+
+Default: ``'TLS'``
+
+Use this setting to customize the TLS/SSL method used by the default
+HTTP/1.1 downloader.
+
+This setting must be one of these string values:
+
+- ``'TLS'``: maps to OpenSSL's ``TLS_method()`` (a.k.a ``SSLv23_method()``),
+  which allows protocol negotiation, starting from the highest supported
+  by the platform; **default, recommended**
+- ``'TLSv1.0'``: this value forces HTTPS connections to use TLS version 1.0 ;
+  set this if you want the behavior of Scrapy<1.1
+- ``'TLSv1.1'``: forces TLS version 1.1
+- ``'TLSv1.2'``: forces TLS version 1.2
+- ``'SSLv3'``: forces SSL version 3 (**not recommended**)
+
+.. note::
+
+    We recommend that you use PyOpenSSL>=0.13 and Twisted>=0.13
+    or above (Twisted>=14.0 if you can).
 
 .. setting:: DOWNLOADER_MIDDLEWARES
 
@@ -366,9 +459,10 @@ Default::
         'scrapy.downloadermiddlewares.robotstxt.RobotsTxtMiddleware': 100,
         'scrapy.downloadermiddlewares.httpauth.HttpAuthMiddleware': 300,
         'scrapy.downloadermiddlewares.downloadtimeout.DownloadTimeoutMiddleware': 350,
-        'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 400,
-        'scrapy.downloadermiddlewares.retry.RetryMiddleware': 500,
-        'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 550,
+        'scrapy.downloadermiddlewares.defaultheaders.DefaultHeadersMiddleware': 400,
+        'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': 500,
+        'scrapy.downloadermiddlewares.retry.RetryMiddleware': 550,
+        'scrapy.downloadermiddlewares.ajaxcrawl.AjaxCrawlMiddleware': 560,
         'scrapy.downloadermiddlewares.redirect.MetaRefreshMiddleware': 580,
         'scrapy.downloadermiddlewares.httpcompression.HttpCompressionMiddleware': 590,
         'scrapy.downloadermiddlewares.redirect.RedirectMiddleware': 600,
@@ -379,7 +473,8 @@ Default::
         'scrapy.downloadermiddlewares.httpcache.HttpCacheMiddleware': 900,
     }
 
-A dict containing the downloader middlewares enabled by default in Scrapy. You
+A dict containing the downloader middlewares enabled by default in Scrapy. Low
+orders are closer to the engine, high orders are closer to the downloader. You
 should never modify this setting in your project, modify
 :setting:`DOWNLOADER_MIDDLEWARES` instead.  For more info see
 :ref:`topics-downloader-middleware-setting`.
@@ -409,8 +504,7 @@ supported.  Example::
 
 This setting is also affected by the :setting:`RANDOMIZE_DOWNLOAD_DELAY`
 setting (which is enabled by default). By default, Scrapy doesn't wait a fixed
-amount of time between requests, but uses a random interval between 0.5 and 1.5
-* :setting:`DOWNLOAD_DELAY`.
+amount of time between requests, but uses a random interval between 0.5 * :setting:`DOWNLOAD_DELAY` and 1.5 * :setting:`DOWNLOAD_DELAY`.
 
 When :setting:`CONCURRENT_REQUESTS_PER_IP` is non-zero, delays are enforced
 per ip address instead of per domain.
@@ -426,7 +520,7 @@ DOWNLOAD_HANDLERS
 Default: ``{}``
 
 A dict containing the request downloader handlers enabled in your project.
-See `DOWNLOAD_HANDLERS_BASE` for example format.
+See :setting:`DOWNLOAD_HANDLERS_BASE` for example format.
 
 .. setting:: DOWNLOAD_HANDLERS_BASE
 
@@ -437,22 +531,23 @@ Default::
 
     {
         'file': 'scrapy.core.downloader.handlers.file.FileDownloadHandler',
-        'http': 'scrapy.core.downloader.handlers.http.HttpDownloadHandler',
-        'https': 'scrapy.core.downloader.handlers.http.HttpDownloadHandler',
+        'http': 'scrapy.core.downloader.handlers.http.HTTPDownloadHandler',
+        'https': 'scrapy.core.downloader.handlers.http.HTTPDownloadHandler',
         's3': 'scrapy.core.downloader.handlers.s3.S3DownloadHandler',
+        'ftp': 'scrapy.core.downloader.handlers.ftp.FTPDownloadHandler',
     }
+
 
 A dict containing the request download handlers enabled by default in Scrapy.
 You should never modify this setting in your project, modify
 :setting:`DOWNLOAD_HANDLERS` instead.
 
-If you want to disable any of the above download handlers you must define them
-in your project's :setting:`DOWNLOAD_HANDLERS` setting and assign `None`
-as their value.  For example, if you want to disable the file download
-handler::
+You can disable any of these download handlers by assigning ``None`` to their
+URI scheme in :setting:`DOWNLOAD_HANDLERS`. E.g., to disable the built-in FTP
+handler (without replacement), place this in your ``settings.py``::
 
     DOWNLOAD_HANDLERS = {
-        'file': None,
+        'ftp': None,
     }
 
 .. setting:: DOWNLOAD_TIMEOUT
@@ -565,7 +660,7 @@ Default::
 
     {
         'scrapy.extensions.corestats.CoreStats': 0,
-        'scrapy.telnet.TelnetConsole': 0,
+        'scrapy.extensions.telnet.TelnetConsole': 0,
         'scrapy.extensions.memusage.MemoryUsage': 0,
         'scrapy.extensions.memdebug.MemoryDebugger': 0,
         'scrapy.extensions.closespider.CloseSpider': 0,
@@ -575,12 +670,23 @@ Default::
         'scrapy.extensions.throttle.AutoThrottle': 0,
     }
 
-The list of available extensions. Keep in mind that some of them need to
-be enabled through a setting. By default, this setting contains all stable
-built-in extensions.
+A dict containing the extensions available by default in Scrapy, and their
+orders. This setting contains all stable built-in extensions. Keep in mind that
+some of them need to be enabled through a setting.
 
 For more information See the :ref:`extensions user guide  <topics-extensions>`
 and the :ref:`list of available extensions <topics-extensions-ref>`.
+
+
+.. setting:: FEED_TEMPDIR
+
+FEED_TEMPDIR
+------------
+
+The Feed Temp dir allows you to set a custom folder to save crawler
+temporary files before uploading with :ref:`FTP feed storage <topics-feed-storage-ftp>` and
+:ref:`Amazon S3 <topics-feed-storage-s3>`.
+
 
 .. setting:: ITEM_PIPELINES
 
@@ -589,12 +695,9 @@ ITEM_PIPELINES
 
 Default: ``{}``
 
-A dict containing the item pipelines to use, and their orders. The dict is
-empty by default order values are arbitrary but it's customary to define them
-in the 0-1000 range.
-
-Lists are supported in :setting:`ITEM_PIPELINES` for backwards compatibility,
-but they are deprecated.
+A dict containing the item pipelines to use, and their orders. Order values are
+arbitrary, but it is customary to define them in the 0-1000 range. Lower orders
+process before higher orders.
 
 Example::
 
@@ -638,7 +741,7 @@ LOG_FILE
 
 Default: ``None``
 
-File name to use for logging output. If None, standard error will be used.
+File name to use for logging output. If ``None``, standard error will be used.
 
 .. setting:: LOG_FORMAT
 
@@ -744,13 +847,15 @@ See :ref:`topics-extensions-ref-memusage`.
 MEMUSAGE_CHECK_INTERVAL_SECONDS
 -------------------------------
 
+.. versionadded:: 1.1
+
 Default: ``60.0``
 
 Scope: ``scrapy.extensions.memusage``
 
 The :ref:`Memory usage extension <topics-extensions-ref-memusage>`
-checks the current memory usage, versus the limits set by 
-:setting:`MEMUSAGE_LIMIT_MB` and :setting:`MEMUSAGE_WARNING_MB`, 
+checks the current memory usage, versus the limits set by
+:setting:`MEMUSAGE_LIMIT_MB` and :setting:`MEMUSAGE_WARNING_MB`,
 at fixed time intervals.
 
 This sets the length of these intervals, in seconds.
@@ -819,8 +924,7 @@ RANDOMIZE_DOWNLOAD_DELAY
 
 Default: ``True``
 
-If enabled, Scrapy will wait a random amount of time (between 0.5 and 1.5
-* :setting:`DOWNLOAD_DELAY`) while fetching requests from the same
+If enabled, Scrapy will wait a random amount of time (between 0.5 * :setting:`DOWNLOAD_DELAY` and 1.5 * :setting:`DOWNLOAD_DELAY`) while fetching requests from the same
 website.
 
 This randomization decreases the chance of the crawler being detected (and
@@ -856,16 +960,6 @@ Defines the maximum times a request can be redirected. After this maximum the
 request's response is returned as is. We used Firefox default value for the
 same task.
 
-.. setting:: REDIRECT_MAX_METAREFRESH_DELAY
-
-REDIRECT_MAX_METAREFRESH_DELAY
-------------------------------
-
-Default: ``100``
-
-Some sites use meta-refresh for redirecting to a session expired page, so we
-restrict automatic redirection to a maximum delay (in seconds)
-
 .. setting:: REDIRECT_PRIORITY_ADJUST
 
 REDIRECT_PRIORITY_ADJUST
@@ -873,8 +967,26 @@ REDIRECT_PRIORITY_ADJUST
 
 Default: ``+2``
 
-Adjust redirect request priority relative to original request.
-A negative priority adjust means more priority.
+Scope: ``scrapy.downloadermiddlewares.redirect.RedirectMiddleware``
+
+Adjust redirect request priority relative to original request:
+
+- **a positive priority adjust (default) means higher priority.**
+- a negative priority adjust means lower priority.
+
+.. setting:: RETRY_PRIORITY_ADJUST
+
+RETRY_PRIORITY_ADJUST
+---------------------
+
+Default: ``-1``
+
+Scope: ``scrapy.downloadermiddlewares.retry.RetryMiddleware``
+
+Adjust retry request priority relative to original request:
+
+- a positive priority adjust means higher priority.
+- **a negative priority adjust (default) means lower priority.**
 
 .. setting:: ROBOTSTXT_OBEY
 
@@ -886,7 +998,13 @@ Default: ``False``
 Scope: ``scrapy.downloadermiddlewares.robotstxt``
 
 If enabled, Scrapy will respect robots.txt policies. For more information see
-:ref:`topics-dlmw-robots`
+:ref:`topics-dlmw-robots`.
+
+.. note::
+
+    While the default value is ``False`` for historical reasons,
+    this option is enabled by default in settings.py file generated
+    by ``scrapy startproject`` command.
 
 .. setting:: SCHEDULER
 
@@ -897,6 +1015,24 @@ Default: ``'scrapy.core.scheduler.Scheduler'``
 
 The scheduler to use for crawling.
 
+.. setting:: SCHEDULER_DEBUG
+
+SCHEDULER_DEBUG
+---------------
+
+Default: ``False``
+
+Setting to ``True`` will log debug information about the requests scheduler.
+This currently logs (only once) if the requests cannot be serialized to disk.
+Stats counter (``scheduler/unserializable``) tracks the number of times this happens.
+
+Example entry in logs::
+
+    1956-01-31 00:00:00+0800 [scrapy] ERROR: Unable to serialize request:
+    <GET http://example.com> - reason: cannot serialize <Request at 0x9a7c7ec>
+    (type Request)> - no more unserializable requests will be logged
+    (see 'scheduler/unserializable' stats counter)
+
 .. setting:: SPIDER_CONTRACTS
 
 SPIDER_CONTRACTS
@@ -904,7 +1040,7 @@ SPIDER_CONTRACTS
 
 Default:: ``{}``
 
-A dict containing the scrapy contracts enabled in your project, used for
+A dict containing the spider contracts enabled in your project, used for
 testing spiders. For more info see :ref:`topics-contracts`.
 
 .. setting:: SPIDER_CONTRACTS_BASE
@@ -923,6 +1059,14 @@ Default::
 A dict containing the scrapy contracts enabled by default in Scrapy. You should
 never modify this setting in your project, modify :setting:`SPIDER_CONTRACTS`
 instead. For more info see :ref:`topics-contracts`.
+
+You can disable any of these contracts by assigning ``None`` to their class
+path in :setting:`SPIDER_CONTRACTS`. E.g., to disable the built-in
+``ScrapesContract``, place this in your ``settings.py``::
+
+    SPIDER_CONTRACTS = {
+        'scrapy.contracts.default.ScrapesContract': None,
+    }
 
 .. setting:: SPIDER_LOADER_CLASS
 
@@ -959,10 +1103,9 @@ Default::
         'scrapy.spidermiddlewares.depth.DepthMiddleware': 900,
     }
 
-A dict containing the spider middlewares enabled by default in Scrapy. You
-should never modify this setting in your project, modify
-:setting:`SPIDER_MIDDLEWARES` instead. For more info see
-:ref:`topics-spider-middleware-setting`.
+A dict containing the spider middlewares enabled by default in Scrapy, and
+their orders. Low orders are closer to the engine, high orders are closer to
+the spider. For more info see :ref:`topics-spider-middleware-setting`.
 
 .. setting:: SPIDER_MODULES
 
@@ -1038,7 +1181,12 @@ TEMPLATES_DIR
 Default: ``templates`` dir inside scrapy module
 
 The directory where to look for templates when creating new projects with
-:command:`startproject` command.
+:command:`startproject` command and new spiders with :command:`genspider`
+command.
+
+The project name must not conflict with the name of custom files or directories
+in the ``project`` subdirectory.
+
 
 .. setting:: URLLENGTH_LIMIT
 
@@ -1071,6 +1219,6 @@ case to see how to enable and use them.
 .. settingslist::
 
 
-.. _Amazon web services: http://aws.amazon.com/
-.. _breadth-first order: http://en.wikipedia.org/wiki/Breadth-first_search
-.. _depth-first order: http://en.wikipedia.org/wiki/Depth-first_search
+.. _Amazon web services: https://aws.amazon.com/
+.. _breadth-first order: https://en.wikipedia.org/wiki/Breadth-first_search
+.. _depth-first order: https://en.wikipedia.org/wiki/Depth-first_search

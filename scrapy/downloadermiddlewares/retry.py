@@ -10,12 +10,6 @@ Failed pages are collected on the scraping process and rescheduled at the end,
 once the spider has finished crawling all regular (non failed) pages. Once
 there is no more failed pages to retry this middleware sends a signal
 (retry_complete), so other extensions could connect to that signal.
-
-About HTTP errors to consider:
-
-- You may want to remove 400 from RETRY_HTTP_CODES, if you stick to the HTTP
-  protocol. It's included by default because it's a common code used to
-  indicate server overload, which would be something we want to retry
 """
 import logging
 
@@ -27,6 +21,7 @@ from twisted.internet.error import TimeoutError, DNSLookupError, \
 from scrapy.exceptions import NotConfigured
 from scrapy.utils.response import response_status_message
 from scrapy.xlib.tx import ResponseFailed
+from scrapy.core.downloader.handlers.http11 import TunnelError
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +33,7 @@ class RetryMiddleware(object):
     EXCEPTIONS_TO_RETRY = (defer.TimeoutError, TimeoutError, DNSLookupError,
                            ConnectionRefusedError, ConnectionDone, ConnectError,
                            ConnectionLost, TCPTimedOutError, ResponseFailed,
-                           IOError)
+                           IOError, TunnelError)
 
     def __init__(self, settings):
         if not settings.getbool('RETRY_ENABLED'):
@@ -62,7 +57,7 @@ class RetryMiddleware(object):
     def process_exception(self, request, exception, spider):
         if isinstance(exception, self.EXCEPTIONS_TO_RETRY) \
                 and not request.meta.get('dont_retry', False):
-             return self._retry(request, exception, spider)
+            return self._retry(request, exception, spider)
 
     def _retry(self, request, reason, spider):
         retries = request.meta.get('retry_times', 0) + 1

@@ -99,12 +99,12 @@ The storages backends supported out of the box are:
 
  * :ref:`topics-feed-storage-fs`
  * :ref:`topics-feed-storage-ftp`
- * :ref:`topics-feed-storage-s3` (requires boto_)
+ * :ref:`topics-feed-storage-s3` (requires botocore_ or boto_)
  * :ref:`topics-feed-storage-stdout`
 
 Some storage backends may be unavailable if the required external libraries are
-not available. For example, the S3 backend is only available if the boto_
-library is installed.
+not available. For example, the S3 backend is only available if the botocore_
+or boto_ library is installed (Scrapy supports boto_ only on Python 2).
 
 
 .. _topics-feed-uri-params:
@@ -177,7 +177,7 @@ The feeds are stored on `Amazon S3`_.
    * ``s3://mybucket/path/to/export.csv``
    * ``s3://aws_key:aws_secret@mybucket/path/to/export.csv``
 
- * Required external libraries: `boto`_
+ * Required external libraries: `botocore`_ or `boto`_
 
 The AWS credentials can be passed as user/password in the URI, or they can be
 passed through the following settings:
@@ -207,6 +207,7 @@ These are the settings used for configuring the feed exports:
  * :setting:`FEED_STORAGES`
  * :setting:`FEED_EXPORTERS`
  * :setting:`FEED_STORE_EMPTY`
+ * :setting:`FEED_EXPORT_ENCODING`
  * :setting:`FEED_EXPORT_FIELDS`
 
 .. currentmodule:: scrapy.extensions.feedexport
@@ -230,6 +231,20 @@ FEED_FORMAT
 
 The serialization format to be used for the feed. See
 :ref:`topics-feed-format` for possible values.
+
+.. setting:: FEED_EXPORT_ENCODING
+
+FEED_EXPORT_ENCODING
+--------------------
+
+Default: ``None``
+
+The encoding to be used for the feed.
+
+If unset or set to ``None`` (default) it uses UTF-8 for everything except JSON output,
+which uses safe numeric encoding (``\uXXXX`` sequences) for historic reasons.
+
+Use ``utf-8`` if you want UTF-8 for JSON too.
 
 .. setting:: FEED_EXPORT_FIELDS
 
@@ -265,7 +280,7 @@ Whether to export empty feeds (ie. feeds with no items).
 FEED_STORAGES
 -------------
 
-Default:: ``{}``
+Default: ``{}``
 
 A dict containing additional feed storage backends supported by your project.
 The keys are URI schemes and the values are paths to storage classes.
@@ -285,37 +300,52 @@ Default::
         'ftp': 'scrapy.extensions.feedexport.FTPFeedStorage',
     }
 
-A dict containing the built-in feed storage backends supported by Scrapy.
+A dict containing the built-in feed storage backends supported by Scrapy. You
+can disable any of these backends by assigning ``None`` to their URI scheme in
+:setting:`FEED_STORAGES`. E.g., to disable the built-in FTP storage backend
+(without replacement), place this in your ``settings.py``::
+
+    FEED_STORAGES = {
+        'ftp': None,
+    }
 
 .. setting:: FEED_EXPORTERS
 
 FEED_EXPORTERS
 --------------
 
-Default:: ``{}``
+Default: ``{}``
 
 A dict containing additional exporters supported by your project. The keys are
-URI schemes and the values are paths to :ref:`Item exporter <topics-exporters>`
-classes.
+serialization formats and the values are paths to :ref:`Item exporter
+<topics-exporters>` classes.
 
 .. setting:: FEED_EXPORTERS_BASE
 
 FEED_EXPORTERS_BASE
 -------------------
-
 Default::
 
-    FEED_EXPORTERS_BASE = {
+    {
         'json': 'scrapy.exporters.JsonItemExporter',
         'jsonlines': 'scrapy.exporters.JsonLinesItemExporter',
+        'jl': 'scrapy.exporters.JsonLinesItemExporter',
         'csv': 'scrapy.exporters.CsvItemExporter',
         'xml': 'scrapy.exporters.XmlItemExporter',
         'marshal': 'scrapy.exporters.MarshalItemExporter',
+        'pickle': 'scrapy.exporters.PickleItemExporter',
     }
 
-A dict containing the built-in feed exporters supported by Scrapy.
+A dict containing the built-in feed exporters supported by Scrapy. You can
+disable any of these exporters by assigning ``None`` to their serialization
+format in :setting:`FEED_EXPORTERS`. E.g., to disable the built-in CSV exporter
+(without replacement), place this in your ``settings.py``::
 
+    FEED_EXPORTERS = {
+        'csv': None,
+    }
 
-.. _URI: http://en.wikipedia.org/wiki/Uniform_Resource_Identifier
-.. _Amazon S3: http://aws.amazon.com/s3/
-.. _boto: http://code.google.com/p/boto/
+.. _URI: https://en.wikipedia.org/wiki/Uniform_Resource_Identifier
+.. _Amazon S3: https://aws.amazon.com/s3/
+.. _boto: https://github.com/boto/boto
+.. _botocore: https://github.com/boto/botocore

@@ -53,6 +53,38 @@ this::
 
 Where the ``<url>`` is the URL you want to scrape.
 
+:command:`shell` also works for local files. This can be handy if you want
+to play around with a local copy of a web page. :command:`shell` understands
+the following syntaxes for local files::
+
+    # UNIX-style
+    scrapy shell ./path/to/file.html
+    scrapy shell ../other/path/to/file.html
+    scrapy shell /absolute/path/to/file.html
+
+    # File URI
+    scrapy shell file:///absolute/path/to/file.html
+
+.. note:: When using relative file paths, be explicit and prepend them
+    with ``./`` (or ``../`` when relevant).
+    ``scrapy shell index.html`` will not work as one might expect (and
+    this is by design, not a bug).
+
+    Because :command:`shell` favors HTTP URLs over File URIs,
+    and ``index.html`` being syntactically similar to ``example.com``,
+    :command:`shell` will treat ``index.html`` as a domain name and trigger
+    a DNS lookup error::
+
+        $ scrapy shell index.html
+        [ ... scrapy shell starts ... ]
+        [ ... traceback ... ]
+        twisted.internet.error.DNSLookupError: DNS lookup failed:
+        address 'index.html' not found: [Errno -5] No address associated with hostname.
+
+    :command:`shell` will not test beforehand if a file called ``index.html``
+    exists in the current directory. Again, be explicit.
+
+
 Using the shell
 ===============
 
@@ -71,7 +103,7 @@ Available Shortcuts
  * ``view(response)`` - open the given response in your local web browser, for
    inspection. This will add a `\<base\> tag`_ to the response body in order
    for external links (such as images and style sheets) to display properly.
-   Note, however,that this will create a temporary file in your computer,
+   Note, however, that this will create a temporary file in your computer,
    which won't be removed automatically.
 
 .. _<base> tag: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
@@ -106,10 +138,10 @@ Example of shell session
 ========================
 
 Here's an example of a typical shell session where we start by scraping the
-http://scrapy.org page, and then proceed to scrape the http://slashdot.org
-page. Finally, we modify the (Slashdot) request method to POST and re-fetch it
-getting a HTTP 405 (method not allowed) error. We end the session by typing
-Ctrl-D (in Unix systems) or Ctrl-Z in Windows.
+http://scrapy.org page, and then proceed to scrape the https://reddit.com
+page. Finally, we modify the (Reddit) request method to POST and re-fetch it
+getting an error. We end the session by typing Ctrl-D (in Unix systems) or
+Ctrl-Z in Windows.
 
 Keep in mind that the data extracted here may not be the same when you try it,
 as those pages are not static and could have changed by the time you test this.
@@ -140,24 +172,24 @@ all start with the ``[s]`` prefix)::
 
 After that, we can start playing with the objects::
 
-    >>> response.xpath("//h1/text()").extract()[0]
-    u'Meet Scrapy'
+    >>> response.xpath('//title/text()').extract_first()
+    u'Scrapy | A Fast and Powerful Scraping and Web Crawling Framework'
 
-    >>> fetch("http://slashdot.org")
+    >>> fetch("http://reddit.com")
     [s] Available Scrapy objects:
-    [s]   crawler    <scrapy.crawler.Crawler object at 0x1a13b50>
+    [s]   crawler    <scrapy.crawler.Crawler object at 0x7fb3ed9c9c90>
     [s]   item       {}
-    [s]   request    <GET http://slashdot.org>
-    [s]   response   <200 http://slashdot.org>
-    [s]   settings   <scrapy.settings.Settings object at 0x2bfd650>
-    [s]   spider     <Spider 'default' at 0x20c6f50>
+    [s]   request    <GET http://reddit.com>
+    [s]   response   <200 https://www.reddit.com/>
+    [s]   settings   <scrapy.settings.Settings object at 0x7fb3ed9c9c10>
+    [s]   spider     <DefaultSpider 'default' at 0x7fb3ecdd3390>
     [s] Useful shortcuts:
     [s]   shelp()           Shell help (print this help)
     [s]   fetch(req_or_url) Fetch request (or URL) and update local objects
     [s]   view(response)    View response in a browser
 
     >>> response.xpath('//title/text()').extract()
-    [u'Slashdot: News for nerds, stuff that matters']
+    [u'reddit: the front page of the internet']
 
     >>> request = request.replace(method="POST")
 

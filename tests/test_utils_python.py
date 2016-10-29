@@ -5,8 +5,9 @@ from itertools import count
 import six
 
 from scrapy.utils.python import (
-    memoizemethod_noargs, isbinarytext, equal_attributes,
-    WeakKeyCache, stringify_dict, get_func_args, to_bytes, to_unicode)
+    memoizemethod_noargs, binary_is_text, equal_attributes,
+    WeakKeyCache, stringify_dict, get_func_args, to_bytes, to_unicode,
+    without_none_values)
 
 __doctests__ = ['scrapy.utils.python']
 
@@ -70,18 +71,18 @@ class MemoizedMethodTest(unittest.TestCase):
         assert one is not three
 
 
-class IsBinaryTextTest(unittest.TestCase):
-    def test_isbinarytext(self):
-        assert not isbinarytext(b"hello")
+class BinaryIsTextTest(unittest.TestCase):
+    def test_binaryistext(self):
+        assert binary_is_text(b"hello")
 
     def test_utf_16_strings_contain_null_bytes(self):
-        assert not isbinarytext(u"hello".encode('utf-16'))
+        assert binary_is_text(u"hello".encode('utf-16'))
 
     def test_one_with_encoding(self):
-        assert not isbinarytext(b"<div>Price \xa3</div>")
+        assert binary_is_text(b"<div>Price \xa3</div>")
 
     def test_real_binary_bytes(self):
-        assert isbinarytext(b"\x02\xa3")
+        assert not binary_is_text(b"\x02\xa3")
 
 
 
@@ -211,6 +212,13 @@ class UtilsPythonTestCase(unittest.TestCase):
         self.assertEqual(get_func_args(six.text_type.split), [])
         self.assertEqual(get_func_args(" ".join), [])
         self.assertEqual(get_func_args(operator.itemgetter(2)), [])
+
+    def test_without_none_values(self):
+        self.assertEqual(without_none_values([1, None, 3, 4]), [1, 3, 4])
+        self.assertEqual(without_none_values((1, None, 3, 4)), (1, 3, 4))
+        self.assertEqual(
+            without_none_values({'one': 1, 'none': None, 'three': 3, 'four': 4}),
+            {'one': 1, 'three': 3, 'four': 4})
 
 if __name__ == "__main__":
     unittest.main()

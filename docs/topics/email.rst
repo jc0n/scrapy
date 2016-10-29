@@ -15,7 +15,7 @@ simple API for sending attachments and it's very easy to configure, with a few
 :ref:`settings <topics-email-settings>`.
 
 .. _smtplib: https://docs.python.org/2/library/smtplib.html
-.. _Twisted non-blocking IO: http://twistedmatrix.com/documents/current/core/howto/defer-intro.html
+.. _Twisted non-blocking IO: https://twistedmatrix.com/documents/current/core/howto/defer-intro.html
 
 Quick example
 =============
@@ -34,6 +34,12 @@ the :ref:`settings <topics-email-settings>`::
 And here is how to use it to send an e-mail (without attachments)::
 
     mailer.send(to=["someone@example.com"], subject="Some subject", body="Some body", cc=["another@example.com"])
+
+.. note::
+    As shown in the example above, ``to`` and ``cc`` need to be lists
+    of email addresses, not single addresses, and even for one recipient,
+    i.e. ``to="someone@example.com"`` will not work.
+
 
 MailSender class reference
 ==========================
@@ -76,7 +82,7 @@ uses `Twisted non-blocking IO`_, like the rest of the framework.
         :param settings: the e-mail recipients
         :type settings: :class:`scrapy.settings.Settings` object
 
-    .. method:: send(to, subject, body, cc=None, attachs=(), mimetype='text/plain')
+    .. method:: send(to, subject, body, cc=None, attachs=(), mimetype='text/plain', charset=None)
 
         Send email to the given recipients.
 
@@ -101,6 +107,9 @@ uses `Twisted non-blocking IO`_, like the rest of the framework.
 
         :param mimetype: the MIME type of the e-mail
         :type mimetype: str
+
+        :param charset: the character encoding to use for the e-mail contents
+        :type charset: str
 
 
 .. _topics-email-settings:
@@ -161,7 +170,7 @@ Password to use for SMTP authentication, along with :setting:`MAIL_USER`.
 .. setting:: MAIL_TLS
 
 MAIL_TLS
----------
+--------
 
 Default: ``False``
 
@@ -170,7 +179,7 @@ Enforce using STARTTLS. STARTTLS is a way to take an existing insecure connectio
 .. setting:: MAIL_SSL
 
 MAIL_SSL
----------
+--------
 
 Default: ``False``
 
